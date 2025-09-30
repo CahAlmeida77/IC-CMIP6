@@ -1,0 +1,172 @@
+# CÓDIGO 2 - PROCESSAMENTO DOS DADOS DE TEMPERATURA DOS MODELOS E PLOTAGEM DOS GRÁFICOS DE ENSEMBLE, COM MÉDIA E DESVIO PADRÃO
+
+import os
+import netCDF4 as nc
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from datetime import datetime
+
+# =============================================
+# CONFIGURAÇÕES
+# =============================================
+pasta_netcdf = r'C:\ic\dados\ssp245'     # Pasta com arquivos NetCDF
+pasta_saida = r'C:\ic\temperatura_ensemble_ind245'  # Pasta de saída
+arquivo_estacoes = r'C:\ic\script\estacoes.csv'    # Arquivo CSV com estações
+
+# Criar pasta de saída se não existir
+os.makedirs(pasta_saida, exist_ok=True)
+
+
+# =============================================
+# CARREGAR ESTAÇÕES METEOROLÓGICAS
+# =============================================
+try:
+    df_estacoes = pd.read_csv(arquivo_estacoes)
+    estacoes = [{
+        'codigo': row['codigo'],
+        'lat': row['lat'],
+        'lon': row['long']
+    } for _, row in df_estacoes.iterrows()]
+    print(f"✅ Carregadas {len(estacoes)} estações do arquivo {arquivo_estacoes}")
+except Exception as e:
+    print(f"❌ Erro ao carregar estações: {str(e)}")
+    exit()
+
+
+# =============================================
+# FUNÇÃO PARA PROCESSAR UM ARQUIVO NETCDF
+# =============================================
+def processar_arquivo(arquivo_nc, pasta_netcdf, estacoes):
+    caminho_arquivo = os.path.join(pasta_netcdf, arquivo_nc)
+    dados_nc = nc.Dataset(caminho_arquivo)
+    
+    # Extrair variáveis
+    tempo = dados_nc.variables['time'][:]
+    latitudes = dados_nc.variables['lat'][:]
+    longitudes = dados_nc.variables['lon'][:]
+    temperatura = dados_nc.variables['pr'][:]
+    
+    # Converter tempo para datas
+    data_referencia = pd.to_datetime('2000-01-01')
+    datas = data_referencia + pd.to_timedelta(tempo, unit='D')
+    
+    # Estrutura para armazenar resultados
+    resultados = {'Data': datas}
+    
+    # Processar cada estação
+    for estacao in estacoes:
+        lat_idx = (np.abs(latitudes - estacao['lat'])).argmin()
+        lon_idx = (np.abs(longitudes - estacao['lon'])).argmin()
+        resultados[estacao['codigo']] = temperatura[:, lat_idx, lon_idx]
+    
+    dados_nc.close()
+    return pd.DataFrame(resultados), os.path.splitext(arquivo_nc)[0]
+
+
+# =============================================
+# PROCESSAMENTO PRINCIPAL
+# =============================================
+arquivos_nc = [f for f in os.listdir(pasta_netcdf) if f.endswith('.nc')]
+modelos = {}
+
+print("\n⏳ Processando arquivos NetCDF...")
+for i, arquivo in enumerate(arquivos_nc, 1):
+    try:
+        print(f"\n📁 Arquivo {i}/{len(arquivos_nc)}: {arquivo}")
+        df, nome_modelo = processar_arquivo(arquivo, pasta_netcdf, estacoes)
+        modelos[nome_modelo] = df
+        print(f"✅ Processado com sucesso!")
+    except Exception as e:
+        print(f"❌ Erro ao processar {arquivo}: {str(e)}")
+
+
+# =============================================
+# GERAR RESULTADOS DE ENSEMBLE (MÁXIMOS ANUAIS DE CADA MODELO + MÉDIA)
+# =============================================
+print("\n📊 Gerando resultados de ensemble (máximos anuais por modelo)...")
+os.makedirs(os.path.join(pasta_saida, 'graficos_ensemble'), exist_ok=True)
+
+for estacao in estacoes:
+    codigo = estacao['codigo']
+    print(f"\n🔍 Processando estação {codigo}...")
+
+    # Obter os anos da série temporal (assumimos que todos os modelos têm as mesmas datas)
+    datas = modelos[next(iter(modelos))]['Data']
+    anos = pd.to_datetime(datas).dt.year.unique()
+
+    # DataFrame para armazenar máximos anuais por modelo
+    df_max_anuais = pd.DataFrame({'Ano': anos})
+
+    for nome_modelo, df_modelo in modelos.items():
+        df_modelo['Ano'] = pd.to_datetime(df_modelo['Data']).dt.year
+        serie_modelo = df_modelo[['Ano', codigo]].groupby('Ano')[codigo].max().reset_index()
+        df_max_anuais[nome_modelo] = serie_modelo[codigo]
+
+    # Calcular média e desvio padrão entre os modelos (por ano)
+    df_max_anuais['Média'] = df_max_anuais.drop('Ano', axis=1).mean(axis=1)
+    df_max_anuais['Desvio_Padrão'] = df_max_anuais.drop(columns=['Ano', 'Média']).std(axis=1)
+
+    # Salvar CSV com todos os dados
+    caminho_csv = os.path.join(pasta_saida, f'estacao_{codigo}_ensemble_maximos_anuais.csv')
+    df_max_anuais.to_csv(caminho_csv, index=False)
+    print(f"💾 Série de máximos anuais salva em {caminho_csv}")
+
+    # Gerar gráfico com todas as curvas
+    plt.figure(figsize=(14, 8))
+
+    # Subgráfico 1: Máximos anuais por modelo
+    plt.subplot(2, 1, 1)
+    for nome_modelo in modelos.keys():
+        plt.plot(df_max_anuais['Ano'], df_max_anuais[nome_modelo], label=nome_modelo, alpha=0.7)
+    plt.title(f'Máximos Anuais de Temperatura por Modelo - Estação {codigo}')
+    plt.ylabel('Temperatura (K)')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid(True)
+
+    # Subgráfico 2: Ensemble (média ± desvio padrão)
+    plt.subplot(2, 1, 2)
+    plt.plot(df_max_anuais['Ano'], df_max_anuais['Média'], color='black', label='Média do Ensemble')
+    plt.fill_between(df_max_anuais['Ano'],
+                     df_max_anuais['Média'] - df_max_anuais['Desvio_Padrão'],
+                     df_max_anuais['Média'] + df_max_anuais['Desvio_Padrão'],
+                     color='gray', alpha=0.3, label='±1 Desvio Padrão')
+    plt.title(f'Máximos Anuais - Ensemble (Média ± Desvio) - Estação {codigo}')
+    plt.xlabel('Ano')
+    plt.ylabel('Temperatura (K)')
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
+    caminho_grafico = os.path.join(pasta_saida, 'graficos_ensemble', f'ensemble_maximos_{codigo}.png')
+    plt.savefig(caminho_grafico, bbox_inches='tight', dpi=150)
+    plt.close()
+    print(f"🖼️ Gráfico salvo em {caminho_grafico}")
+
+
+# =============================================
+# GERAR ESTATÍSTICAS CONSOLIDADAS (MÁXIMOS ANUAIS POR MODELO + ENSEMBLE)
+# =============================================
+print("\n📈 Gerando estatísticas consolidadas (máximos anuais por modelo e ensemble)...")
+df_stats = pd.DataFrame()
+
+for estacao in estacoes:
+    codigo = estacao['codigo']
+    caminho_csv = os.path.join(pasta_saida, f'estacao_{codigo}_ensemble_maximos_anuais.csv')
+    df = pd.read_csv(caminho_csv)
+
+    # Estatísticas para cada modelo individual
+    for nome_modelo in modelos.keys():
+        media = df[nome_modelo].mean()
+        desvio = df[nome_modelo].std()
+        df_stats.loc[codigo, f'{nome_modelo}_mean'] = media
+        df_stats.loc[codigo, f'{nome_modelo}_std'] = desvio
+
+    # Estatísticas para o ensemble (média dos modelos)
+    df_stats.loc[codigo, 'Ensemble_mean'] = df['Média'].mean()
+    df_stats.loc[codigo, 'Ensemble_std'] = df['Desvio_Padrão'].mean()
+
+# Salvar arquivo consolidado
+caminho_stats = os.path.join(pasta_saida, 'estatisticas_consolidadas_maximos.csv')
+df_stats.to_csv(caminho_stats)
+print(f"📊 Estatísticas consolidadas salvas em {caminho_stats}")
