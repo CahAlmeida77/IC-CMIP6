@@ -1,0 +1,134 @@
+# CÓDIGO PARA PROCESSAMENTO DE DADOS DE TEMPERATURA COM INTERVALO DE CONFIANÇA (95%)
+# ADAPTADO A PARTIR DO CÓDIGO DE PRECIPITAÇÃO ACUMULADA
+
+import os
+import netCDF4 as nc
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+# =============================================
+# CONFIGURAÇÕES
+# =============================================
+pasta_netcdf = r'C:\ic\dados\ssp245'            # Pasta com arquivos NetCDF (ajuste para SSP245 ou SSP585)
+pasta_saida = r'C:\ic\resultados_temperatura245'   # Pasta de saída
+arquivo_estacoes = r'C:\ic\script\estacoes.csv'     # Arquivo CSV com estações
+
+# Criar pasta de saída se não existir
+os.makedirs(pasta_saida, exist_ok=True)
+
+# =============================================
+# CARREGAR ESTAÇÕES METEOROLÓGICAS
+# =============================================
+try:
+    df_estacoes = pd.read_csv(arquivo_estacoes)
+    estacoes = [{
+        'codigo': row['codigo'],
+        'lat': row['lat'],
+        'lon': row['long']
+    } for _, row in df_estacoes.iterrows()]
+    print(f"✅ Carregadas {len(estacoes)} estações do arquivo {arquivo_estacoes}")
+except Exception as e:
+    print(f"❌ Erro ao carregar estações: {str(e)}")
+    exit()
+
+# =============================================
+# FUNÇÃO PARA PROCESSAR UM ARQUIVO NETCDF
+# =============================================
+def processar_arquivo(arquivo_nc, pasta_netcdf, estacoes):
+    caminho_arquivo = os.path.join(pasta_netcdf, arquivo_nc)
+    dados_nc = nc.Dataset(caminho_arquivo)
+    
+    # Extrair variáveis
+    tempo = dados_nc.variables['time'][:]
+    latitudes = dados_nc.variables['lat'][:]
+    longitudes = dados_nc.variables['lon'][:]
+    temperatura = dados_nc.variables['tas'][:]  # variável de temperatura
+    
+    # Converter tempo (dias desde 2000-01-01, ajustar se necessário)
+    data_referencia = pd.to_datetime('2000-01-01')
+    datas = data_referencia + pd.to_timedelta(tempo, unit='D')
+    
+    # Estrutura para armazenar resultados
+    resultados = {'Data': datas}
+    
+    # Processar cada estação
+    for estacao in estacoes:
+        lat_idx = (np.abs(latitudes - estacao['lat'])).argmin()
+        lon_idx = (np.abs(longitudes - estacao['lon'])).argmin()
+        resultados[estacao['codigo']] = temperatura[:, lat_idx, lon_idx] - 273.15  # converter de K para °C
+    
+    dados_nc.close()
+    return pd.DataFrame(resultados), os.path.splitext(arquivo_nc)[0]
+
+# =============================================
+# PROCESSAMENTO PRINCIPAL
+# =============================================
+arquivos_nc = [f for f in os.listdir(pasta_netcdf) if f.endswith('.nc')]
+modelos = {}
+
+print("\n⏳ Processando arquivos NetCDF...")
+for i, arquivo in enumerate(arquivos_nc, 1):
+    try:
+        print(f"\n📁 Arquivo {i}/{len(arquivos_nc)}: {arquivo}")
+        df, nome_modelo = processar_arquivo(arquivo, pasta_netcdf, estacoes)
+        modelos[nome_modelo] = df
+        print(f"✅ Processado com sucesso!")
+    except Exception as e:
+        print(f"❌ Erro ao processar {arquivo}: {str(e)}")
+
+# =============================================
+# GERAR RESULTADOS COM IC E QUANTIS
+# =============================================
+print("\n📊 Gerando resultados de temperatura com intervalo de confiança...")
+os.makedirs(os.path.join(pasta_saida, 'graficos_temperatura'), exist_ok=True)
+
+for estacao in estacoes:
+    codigo = estacao['codigo']
+    print(f"\n🔍 Processando estação {codigo}...")
+    
+    df_estacao = pd.DataFrame({'Data': modelos[next(iter(modelos))]['Data']})
+    for nome_modelo, df in modelos.items():
+        df_estacao[nome_modelo] = df[codigo]
+    
+    # Calcular quantis (10%, 50%, 90%)
+    colunas_temp = [m for m in modelos.keys()]
+    df_estacao['Q10'] = df_estacao[colunas_temp].quantile(0.1, axis=1)
+    df_estacao['Q50'] = df_estacao[colunas_temp].quantile(0.5, axis=1)
+    df_estacao['Q90'] = df_estacao[colunas_temp].quantile(0.9, axis=1)
+    
+    # Média e desvio padrão
+    df_estacao['Media'] = df_estacao[colunas_temp].mean(axis=1)
+    df_estacao['Desvio_Padrao'] = df_estacao[colunas_temp].std(axis=1)
+    
+    # Intervalo de confiança 95%
+    n_modelos = len(modelos)
+    z_score = 1.96
+    df_estacao['IC_inferior'] = df_estacao['Media'] - z_score * (df_estacao['Desvio_Padrao'] / np.sqrt(n_modelos))
+    df_estacao['IC_superior'] = df_estacao['Media'] + z_score * (df_estacao['Desvio_Padrao'] / np.sqrt(n_modelos))
+    
+    # Salvar CSV
+    caminho_csv = os.path.join(pasta_saida, f'estacao_{codigo}_temperatura.csv')
+    df_estacao.to_csv(caminho_csv, index=False)
+    print(f"💾 Dados salvos em {caminho_csv}")
+    
+    # Gerar gráfico
+    plt.figure(figsize=(14, 8))
+    plt.title(f'Temperatura Média com IC 95% - Estação {codigo}', fontsize=14, pad=20)
+    
+    plt.plot(df_estacao['Data'], df_estacao['Q50'], color='red', linewidth=2, label='Média (Q50)')
+    plt.fill_between(df_estacao['Data'], df_estacao['Q10'], df_estacao['Q90'], color='orange', alpha=0.3, label='Q10–Q90')
+    plt.fill_between(df_estacao['Data'], df_estacao['IC_inferior'], df_estacao['IC_superior'], color='red', alpha=0.2, label='IC 95%')
+    
+    plt.xlabel('Data', fontsize=12)
+    plt.ylabel('Temperatura (°C)', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend(fontsize=10, loc='upper left')
+    
+    plt.tight_layout()
+    caminho_grafico = os.path.join(pasta_saida, 'graficos_temperatura', f'temperatura_IC_{codigo}.png')
+    plt.savefig(caminho_grafico, bbox_inches='tight', dpi=300)
+    plt.close()
+    print(f"🖼️ Gráfico salvo em {caminho_grafico}")
+
+print("\n🎉 Processamento concluído! Resultados disponíveis em:", pasta_saida)
