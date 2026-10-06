@@ -1,71 +1,71 @@
-# Análise de Projeções Climáticas do CMIP6
-Repositório desenvolvido no âmbito de uma **Iniciação Científica em Engenharia Ambiental**, reunindo os scripts em Python utilizados no processamento, análise estatística e visualização de dados climáticos provenientes de modelos globais do **Coupled Model Intercomparison Project Phase 6 (CMIP6)**.
+# Analysis of CMIP6 Climate Projections
 
-O trabalho integra **projeções climáticas futuras e registros históricos de estações meteorológicas**, com foco na análise de variáveis de **precipitação e temperatura** e na avaliação da variabilidade entre diferentes modelos climáticos.
+A repository developed as part of an **Undergraduate Research Project in Environmental Engineering**, gathering Python scripts used for the processing, statistical analysis, and visualization of climate data from global models within the **Coupled Model Intercomparison Project Phase 6 (CMIP6)**.
 
-## Objetivo
+The work integrates **future climate projections and historical records from weather stations**, focusing on the analysis of **precipitation and temperature** variables and the assessment of variability across different climate models.
 
-Desenvolver uma rotina computacional para organizar, processar e analisar grandes volumes de dados climáticos, permitindo comparar diferentes modelos do CMIP6 e construir representações de **ensemble** para avaliar padrões, extremos e incertezas nas projeções climáticas.
+## Objective
 
-## Metodologia computacional
+To develop a computational routine to organize, process, and analyze large volumes of climate data, enabling the comparison of different CMIP6 models and the construction of **ensemble** representations to evaluate patterns, extremes, and uncertainties in climate projections.
 
-Os códigos desenvolvidos contemplam etapas de:
+## Computational Methodology
 
-* Leitura e processamento de arquivos climáticos no formato **NetCDF**;
-* Extração de séries temporais a partir das coordenadas de estações meteorológicas;
-* Organização e tratamento das séries históricas e projetadas;
-* Cálculo de **máximos anuais de precipitação**;
-* Processamento de diferentes modelos climáticos individualmente;
-* Construção de **ensembles**, utilizando média e desvio-padrão entre os modelos;
-* Geração de séries temporais e visualizações para comparação entre modelos;
-* Consolidação dos resultados em arquivos **CSV** para análises posteriores.
+The developed code covers the following stages:
 
-## Estrutura do repositório
+* Reading and processing climate files in **NetCDF** format;
+* Extracting time series based on weather station coordinates;
+* Organizing and processing historical and projected series;
+* Calculating **annual maximum precipitation**;
+* Processing individual climate models;
+* Constructing **ensembles** using the mean and standard deviation across models;
+* Generating time series and visualizations for model comparison;
+* Consolidating results into **CSV** files for further analysis. ## 📊 Repository structure
 
 ```text
 iniciacao-cientifica/
 │
 ├── Script
-│   └── Processamento dos dados de precipitação,
-│       cálculo de máximos anuais e ensemble
+│   └── Precipitation data processing,
+│       calculation of annual maxima and ensemble
 │
 ├── Temperatura_ensemble
-│   └── Processamento e análise em ensemble
-│       dos dados de temperatura
+│   └── Ensemble processing and analysis
+│       of temperature data
 │
 ├── Temperatura_graficolinhas
-│   └── Geração de séries e gráficos de temperatura
+│   └── Generation of temperature series and plots
 │
 ├── acumulada
-│   └── Rotinas relacionadas à análise acumulada
-│       das variáveis climáticas
+│   └── Routines related to the cumulative analysis
+│       of climate variables
 │
 ├── estacoes.csv
-│   └── Identificação e coordenadas das estações
-│       meteorológicas utilizadas
+│   └── Identification and coordinates of the
+│       weather stations used
 │
 └── LICENSE
 ```
 
-## Tecnologias e bibliotecas
+## Technologies and libraries
 
-**Python** foi utilizado como principal linguagem para processamento e análise dos dados.
+**Python** was used as the primary language for data processing and analysis.
 
-Principais bibliotecas empregadas:
+Key libraries employed:
 
-* `pandas` — organização, tratamento e análise de dados;
-* `numpy` — operações numéricas e processamento das séries;
-* `netCDF4` — leitura e manipulação dos arquivos NetCDF;
-* `matplotlib` — geração de gráficos e visualizações;
-* `datetime` — tratamento das séries temporais.
+* `pandas` — data organization, processing, and analysis;
+* `numpy` — numerical operations and time series processing;
+* `netCDF4` — reading and manipulating NetCDF files;
+* `matplotlib` — generating plots and visualizations;
+* `datetime` — handling time series data.
 
-## Aplicação na pesquisa
+## Research application
 
-Os resultados obtidos por meio desses códigos fazem parte da análise de **projeções climáticas para a região de Sorocaba (SP) e municípios do entorno**, contribuindo para a investigação de possíveis alterações futuras nos padrões de precipitação e temperatura.
-A utilização de múltiplos modelos climáticos permite evidenciar não apenas tendências e padrões médios, mas também a **variabilidade e a incerteza associadas às projeções**, aspecto fundamental para estudos de adaptação às mudanças climáticas e planejamento ambiental.
+The results obtained using this code are part of an analysis of **climate projections for the Sorocaba (SP) region and surrounding municipalities**, contributing to the investigation of potential future changes in precipitation and temperature patterns.
 
-## Observação
+Using multiple climate models makes it possible to highlight not only trends and average patterns but also the **variability and uncertainty associated with the projections**—a crucial aspect for climate change adaptation studies and environmental planning.
 
-Os scripts presentes neste repositório foram desenvolvidos e adaptados ao longo das diferentes etapas da pesquisa. Alguns caminhos de arquivos e diretórios utilizados originalmente são específicos do ambiente de desenvolvimento da pesquisa e, portanto, podem exigir ajustes para reprodução em outros computadores.
----
-**Projeto de Iniciação Científica — Engenharia Ambiental | UNESP Sorocaba**
+## Note
+
+The scripts in this repository were developed and adapted throughout the various stages of the research. Some file paths and directory structures originally used are specific to the research's development environment and may therefore require adjustments to run on other computers. ---
+
+**Undergraduate Research Project — Environmental Engineering | UNESP Sorocaba**
